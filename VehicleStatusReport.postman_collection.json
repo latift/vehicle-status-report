@@ -1,0 +1,95 @@
+{
+	"info": {
+		"_postman_id": "87807281-e22e-4adf-b9d2-89c7a95e1602",
+		"name": "VehicleStatusReport",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "11289783"
+	},
+	"item": [
+		{
+			"name": "https://insurance.com/accidents/report?vin={123}",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://insurance.com/accidents/report?vin=123",
+					"protocol": "https",
+					"host": [
+						"insurance",
+						"com"
+					],
+					"path": [
+						"accidents",
+						"report"
+					],
+					"query": [
+						{
+							"key": "vin",
+							"value": "123"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "https://topgarage.com/cars/123",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://topgarage.com/cars/4Y1SL65848Z411439",
+					"protocol": "https",
+					"host": [
+						"topgarage",
+						"com"
+					],
+					"path": [
+						"cars",
+						"4Y1SL65848Z411439"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "http://localhost:8080/check",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "    {\n\t    \"vin\": \"4Y1SL65848Z411439\", \n\t    \"features\": [\"accident_free\", \"maintenance\"]\n    }",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/check",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"check"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
