@@ -1,14 +1,13 @@
 package com.example.vehiclestatus;
 
+import com.example.vehiclestatus.exception.*;
 import com.example.vehiclestatus.insurance.*;
-import com.example.vehiclestatus.logging.*;
 import com.example.vehiclestatus.maintenance.*;
+import java.rmi.server.*;
 import java.util.*;
 import org.apache.logging.log4j.*;
 import org.apache.logging.log4j.Logger;
-import org.slf4j.*;
 import org.springframework.stereotype.*;
-import org.springframework.web.reactive.function.client.*;
 import reactor.core.publisher.*;
 
 @Service
@@ -18,89 +17,77 @@ public class VehicleStatusReportService {
 
     private final InsuranceWebClient insuranceWebClient;
 
-    VehicleStatusResponse vehicleStatusResponse;
-
-    private static final Logger logger = LogManager.getLogger(VehicleStatusReportService.class);
-
     public VehicleStatusReportService(MaintananceWebClient maintananceWebClient, InsuranceWebClient insuranceWebClient) {
         this.maintananceWebClient = maintananceWebClient;
         this.insuranceWebClient = insuranceWebClient;
     }
 
+   public Mono<VehicleStatusResponse> getVehicleStatus(Mono<VehicleStatusRequest> vehicleStatusRequest) {
 
-    private Mono<MaintenanceInfo> getMaintenanceStatus(VehicleStatusRequest vehicleStatusRequest) {
-        vehicleStatusResponse = new VehicleStatusResponse();
-        if (vehicleStatusRequest.getFeatures().contains(VehicleStatusFeatures.maintenance)) {
-            Mono<MaintenanceInfo> maintenanceInfoMono = maintananceWebClient.consume(vehicleStatusRequest.getVin());
-            return maintenanceInfoMono;
+       Mono<MaintenanceInfo> maintenanceInfoMono = getMaintenanceStatus(vehicleStatusRequest);
+
+       Mono<InsuranceInfo> insuranceInfoMono = getInsuranceStatus(vehicleStatusRequest);
+
+       final Mono<VehicleStatusResponse> vehicleStatusResponse = vehicleStatusRequest
+               .zipWith(insuranceInfoMono)
+               .map((f) -> {
+                   final VehicleStatusResponse vehicleStatusResponseInner = new VehicleStatusResponse();
+                   vehicleStatusResponseInner.setVin(f.getT1().getVin());
+                   vehicleStatusResponseInner.setRequest_id(UUID.randomUUID().toString());
+                   vehicleStatusResponseInner.setAccident_free(f.getT2().getReportList().isEmpty());
+                   return  vehicleStatusResponseInner;
+               });
+
+       final Mono<VehicleStatusResponse> vehicleStatusResponse2 =  vehicleStatusResponse
+               .zipWith(maintenanceInfoMono)
+               .map((t) -> {
+                   final MaintenanceScore score;
+                   switch (t.getT2().getMaintenance_frequency()) {
+                       case "very-low":
+                       case "low":
+                           score = MaintenanceScore.poor;
+                           break;
+                       case "medium":
+                           score = MaintenanceScore.average;
+                           break;
+                       case "high":
+                           score = MaintenanceScore.good;
+                           break;
+                       default:
+                           throw new UnknownMaintenanceScore("Maintenance Score is unknown");
+                   }
+                   return new VehicleStatusResponse(
+                           t.getT1().getVin(),
+                           t.getT1().getRequest_id(),
+                           t.getT1().isAccident_free(),
+                           score
+                   );
+               });
+       return  vehicleStatusResponse2;
+   }
+
+    private Mono<MaintenanceInfo> getMaintenanceStatus(Mono<VehicleStatusRequest> vehicleStatusRequest) {
+        List<String> features = vehicleStatusRequest.block().getFeatures();
+        if (features.contains(VehicleStatusFeatures.maintenance.toString())) {
+            Mono<MaintenanceInfo> maintenanceInfo = maintananceWebClient.consume(vehicleStatusRequest.block().getVin());
+            return maintenanceInfo;
         }
-        return Mono.empty();
+        /*TODO: Below code should be reimplemented with retry mechanism or should throw exception.
+        implemented like this for test purposes
+        */
+        return Mono.just(new MaintenanceInfo("very_low"));
     }
 
-    private Mono<InsuranceInfo> getInsuranceStatus(VehicleStatusRequest vehicleStatusRequest) {
-        if(vehicleStatusRequest.getFeatures().contains(VehicleStatusFeatures.accident_free)) {
-            Mono<InsuranceInfo> insuranceInfoMono = insuranceWebClient.consume(vehicleStatusRequest.getVin());
+    private Mono<InsuranceInfo> getInsuranceStatus(Mono<VehicleStatusRequest> vehicleStatusRequest) {
+        if(vehicleStatusRequest.block().getFeatures().contains(VehicleStatusFeatures.accident_free.toString())) {
+            Mono<InsuranceInfo> insuranceInfoMono = insuranceWebClient.consume(vehicleStatusRequest.block().getVin());
             return insuranceInfoMono;
         }
-        return Mono.empty();
-    }
 
-    public Mono<VehicleStatusResponse> getVehicleStatus(VehicleStatusRequest vehicleStatusRequest) {
-
-        String uniqueID = UUID.randomUUID().toString();
-        vehicleStatusResponse = new VehicleStatusResponse();
-
-        Mono<MaintenanceInfo> res1 = getMaintenanceStatus(vehicleStatusRequest);
-        res1.subscribe(this::maintenanceInfoSuccessCallback,this::maintenanceInfoErrorCallback,this::maintenanceInfoOnComplete);
-
-
-        Mono<InsuranceInfo> res2 = getInsuranceStatus(vehicleStatusRequest);
-        res2.subscribe(this::insuranceSuccessCalback, this::insuranceErrorCalback,this::insuranceOnComplete);
-
-        vehicleStatusResponse.setVin(vehicleStatusRequest.getVin());
-        vehicleStatusResponse.setRequest_id(uniqueID);
-
-        Mono<VehicleStatusResponse> vehicleStatusResponseMono = null;
-        return  vehicleStatusResponseMono;
-
-    }
-
-
-
-    private void maintenanceInfoSuccessCallback(MaintenanceInfo maintenanceInfoResp) {
-        logger.info("Success maintenanceInfoSuccessCallback");
-        logger.info(maintenanceInfoResp);
-        if (maintenanceInfoResp.getMaintenance_frequency().equals("very_low") || maintenanceInfoResp.getMaintenance_frequency().equals("low")) {
-            vehicleStatusResponse.setMaintenance_score(MaintenanceScore.poor);
-        } else if (maintenanceInfoResp.getMaintenance_frequency().equals("medium")) {
-            vehicleStatusResponse.setMaintenance_score(MaintenanceScore.average);
-        } else if (maintenanceInfoResp.getMaintenance_frequency().equals("high")) {
-            vehicleStatusResponse.setMaintenance_score(MaintenanceScore.good);
-        }
-    }
-
-    private void maintenanceInfoErrorCallback(Throwable maintenanceInfoThrowable) {
-        logger.info("Error maintenanceInfoErrorCallback" );
-        logger.info(maintenanceInfoThrowable.getMessage());
-    }
-
-
-    private void maintenanceInfoOnComplete() {
-        logger.info("Completed Maintenance");
-    }
-
-
-    private void insuranceSuccessCalback(InsuranceInfo insuranceInfoResp) {
-        logger.info("Success insuranceSuccessCalback" );
-        vehicleStatusResponse.setAccident_free(insuranceInfoResp.getReportList().isEmpty());
-    }
-
-    private void insuranceErrorCalback(Throwable insuranceInfoThrowable) {
-        logger.info("Error insuranceErrorCalback" );
-    }
-
-    private void insuranceOnComplete() {
-        logger.info("Completed insuranceOnComplete" );
+        /*TODO: Below code should be reimplemented with retry mechanism or should throw exception.
+        But implemented like this for now
+        */
+        return Mono.just(new InsuranceInfo(List.of()));
     }
 
 }

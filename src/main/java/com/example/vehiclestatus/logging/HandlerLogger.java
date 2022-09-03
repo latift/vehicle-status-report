@@ -17,12 +17,12 @@ import org.springframework.web.bind.annotation.*;
  */
 @Aspect
 @Component
-public class VehicleStatusControllerLogger {
-    private static final Logger logger = LoggerFactory.getLogger(VehicleStatusControllerLogger.class);
+public class HandlerLogger {
+    private static final Logger logger = LoggerFactory.getLogger(HandlerLogger.class);
 
     final private ObjectMapper mapper;
 
-    public VehicleStatusControllerLogger(ObjectMapper mapper) {
+    public HandlerLogger(ObjectMapper mapper) {
         this.mapper = mapper;
     }
 

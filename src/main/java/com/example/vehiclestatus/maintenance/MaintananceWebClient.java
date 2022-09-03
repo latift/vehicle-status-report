@@ -1,6 +1,11 @@
 package com.example.vehiclestatus.maintenance;
 
+import com.example.vehiclestatus.*;
+import com.example.vehiclestatus.exception.*;
+import java.time.*;
 import org.slf4j.*;
+import org.springframework.boot.*;
+import org.springframework.http.*;
 import org.springframework.stereotype.*;
 import org.springframework.web.reactive.function.client.*;
 import reactor.core.publisher.*;
@@ -23,11 +28,21 @@ public class MaintananceWebClient {
     WebClient client = WebClient.create("https://topgarage.com/cars");
 
     public Mono<MaintenanceInfo> consume(String vin) {
-        Mono<MaintenanceInfo> mono =  client.get()
-          .uri("/{vin}", vin)
-          .retrieve()
-          .bodyToMono(MaintenanceInfo.class);
-        return mono;
+        try {
+            WebClient.ResponseSpec responseSpec = client.get()
+                    .uri("/{vin}", vin)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve();
+            return responseSpec.bodyToMono(MaintenanceInfo.class);
+        }catch (Exception e){
+            return Mono.error(new MaintenanceServiceNotAvailable("Exception occurred while creating maintenance mono" + e.getMessage()));
+        }
+    }
+
+    public static void main(String[] args) {
+        MaintananceWebClient maintananceWebClient = new MaintananceWebClient();
+        Mono<MaintenanceInfo> responseBody = maintananceWebClient.consume("4Y1SL65848Z411439");
+        System.out.println(responseBody.block(Duration.ofSeconds(5)).toString());
     }
 
 }

@@ -9,6 +9,6 @@ import lombok.*;
 public class VehicleStatusRequest {
 
     private String vin;
-    private List<VehicleStatusFeatures> features;
+    private List<String> features;
 
 }
